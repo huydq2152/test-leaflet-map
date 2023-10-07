@@ -89,7 +89,6 @@ $(document).ready(function () {
     }
 
     function getColor(status) {
-        console.log('status = ', status);
        switch (status) {
         case 1:
             return "#FF9980"
