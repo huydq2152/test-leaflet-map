@@ -1,11 +1,16 @@
 $(document).ready(function () {
+    var previousZoomLevel = 17;
+    //#region display map
+
     const apiKey = "AAPK3373b61cf92b49eaa87fce9d3d4037a5dkWdLy4S9V518BcT_ebYPvh_SUzlx6AmkbdFKnaFrFnetTUR005gMS083ONDA0yU";
 
-    const map = L.map("map").setView([11.338742079290764, 108.89905918790635], 18);
-    L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+    const map = L.map("map").setView([11.338742079290764, 108.89905918790635], previousZoomLevel);
+    L.tileLayer('http://{s}.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
         maxZoom: 20,
         subdomains: ['mt0', 'mt1', 'mt2', 'mt3']
     }).addTo(map);
+
+    //#endregion
 
     //#region Search control
     const searchControl = L.esri.Geocoding.geosearch({
@@ -46,7 +51,7 @@ $(document).ready(function () {
     };
 
     info.update = function (props) {
-        const contents = props ? `<b>${props.name}</b><br /> Trạng thái: ${props.status} `: 'Trỏ chuột vào một ao';
+        const contents = props ? `<b>${props.name}</b><br /> Trạng thái: ${props.status} ` : 'Trỏ chuột vào một ao';
         this._div.innerHTML = `<h4>Thông tin ao</h4>${contents}`;
     };
 
@@ -54,7 +59,7 @@ $(document).ready(function () {
 
     //#endregion
 
-    const geojson = L.geoJson(pondData, {
+    const geojson = L.geoJson(pondDatas, {
         style,
         onEachFeature
     }).addTo(map);
@@ -71,35 +76,42 @@ $(document).ready(function () {
     }
 
     function onEachFeature(feature, layer) {
+        feature.properties.center = layer.getBounds().getCenter();
         layer.on({
-            mouseover: highlightFeature,
-            mouseout: resetHighlight,
-            click: zoomToFeature
+            mouseover: mouseoverPond,
+            mouseout: mouseoutPond,
+            click: clickToPond
         });
         if (feature.properties && feature.properties.name) {
             var label = L.divIcon({
-                className: 'my-label',
-                html: feature.properties.name
+                className: 'pond-label',
+                html: `<h2>
+                <span 
+                class="label label-default" 
+                style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); white-space: nowrap;">
+                ${feature.properties.name}
+                </span>
+                </h2>`
             });
 
-            L.marker(layer.getBounds().getCenter(), {
+            L.marker(feature.properties.center, {
                 icon: label
             }).addTo(map);
         }
     }
 
     function getColor(status) {
-       switch (status) {
-        case 1:
-            return "#FF9980"
-        case 2:
-            return "#79FF4D"
-        default:
-            break;
-       }
+        switch (status) {
+            case 1:
+                return "#FF9980"
+            case 2:
+                return "#79FF4D"
+            default:
+                break;
+        }
     }
 
-    function highlightFeature(e) {
+    function mouseoverPond(e) {
         const layer = e.target;
 
         layer.setStyle({
@@ -114,16 +126,40 @@ $(document).ready(function () {
         info.update(layer.feature.properties);
     }
 
-    function resetHighlight(e) {
+    function mouseoutPond(e) {
+        const layer = e.target;
+        layer.bringToBack();
         geojson.resetStyle(e.target);
         info.update();
     }
 
-    function zoomToFeature(e) {
+    function clickToPond(e) {
         map.fitBounds(e.target.getBounds());
     }
 
+    map.on('zoomend', function () {
+        var zoomLever = map.getZoom();
+        var differenceZoomLever = zoomLever - previousZoomLevel;
+        var previousFontSize = parseFloat($('.pond-label').css('font-size'));
+        $('.pond-label').css('font-size', previousFontSize * Math.pow(2, differenceZoomLever));
+        previousZoomLevel = zoomLever;
+    })
+
     //#endregion
 
+    $.each(pondDatas.features, function (index, pondData) {
+        let fromPond = pondDatas.features.find((pond) => {
+            return pond.properties.id == pondData.properties.fromPondId;
+        }
+        );
+        if (fromPond !== null && fromPond !== undefined) {
+            var fromPondCenter = fromPond.properties.center;
+            L.polyline([fromPondCenter, pondData.properties.center]).arrowheads({
+                frequency: '40px', 
+                size: '12px',
+                zIndex:100
+            }).addTo(map);
+        }
+    })
 });
 
